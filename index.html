@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Recipes</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Recipes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f7f3ec">
+<link rel="apple-touch-icon" href="recipes-icon.png">
+<style>
+:root{--bg:#f7f3ec;--card:#fff;--ink:#2b2622;--mute:#7a7067;--line:#e6ded2;--accent:#b5562f}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1a18;--card:#262320;--ink:#f1ebe3;--mute:#a59a8e;--line:#3a3530;--accent:#e08a5f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.35 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;-webkit-text-size-adjust:100%}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;border-bottom:1px solid var(--line)}
+h1{margin:0 0 8px;font-size:26px}
+#q{width:100%;font-size:17px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-top:8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 11px;border-radius:16px;font-size:14px}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#count{color:var(--mute);font-size:13px;padding:8px 16px 0}
+ul{list-style:none;margin:0;padding:6px 12px calc(env(safe-area-inset-bottom) + 20px)}
+li{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;margin:8px 0}
+li img,li .ph{width:64px;height:64px;border-radius:8px;object-fit:cover;flex:none;background:var(--line)}
+li .t{flex:1;min-width:0}
+li .n{font-weight:600}
+li .m{color:var(--mute);font-size:13px;margin-top:2px}
+li a{color:inherit;text-decoration:none;display:flex;gap:12px;align-items:center;flex:1;min-width:0}
+.err{padding:20px 16px;color:var(--accent)}
+.hint{color:var(--mute);font-size:12px;text-align:center;padding:0 16px 20px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Recipes</h1>
+  <input id="q" type="search" placeholder="Search name, chef, source…" autocomplete="off">
+  <div class="chips" id="meal"></div>
+  <div class="chips" id="protein"></div>
+</header>
+<div id="count">Loading…</div>
+<ul id="list"></ul>
+<p class="hint">Tap a recipe to open it. To print: Share → Print.</p>
+<script>
+const SUPABASE_URL='https://ndrwzvhebakozjlfnvax.supabase.co';
+const SUPABASE_KEY='sb_publishable_jWnI0f_lvzFq9-vgk56B5Q_oU4rOZjU';
+let all=[],f={meal:'',protein:''};
+const norm=s=>{s=(s||'').trim();if(!s||/^(none|na)$/i.test(s))return'';s=s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  const map={eggs:'egg',vegtable:'vegetable'};s=map[s]||s;return s.replace(/\b\w/g,c=>c.toUpperCase());};
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function chips(id,key){const vals=[...new Set(all.map(r=>r[key]).filter(Boolean))].sort();
+  const el=document.getElementById(id);
+  el.innerHTML=['All',...vals].map(v=>`<button class="chip${(f[key]||'All')===v?' on':''}" data-v="${esc(v)}">${esc(v)}</button>`).join('');
+  el.onclick=e=>{const b=e.target.closest('.chip');if(!b)return;f[key]=b.dataset.v==='All'?'':b.dataset.v;chips(id,key);render();};}
+function render(){const q=document.getElementById('q').value.trim().toLowerCase();
+  const rows=all.filter(r=>(!f.meal||r.meal===f.meal)&&(!f.protein||r.protein===f.protein)&&
+    (!q||[r.name,r.author_chef,r.source,r.ethnicity,r.cooking_method,r.comments].join(' ').toLowerCase().includes(q)));
+  document.getElementById('count').textContent=rows.length+' of '+all.length+' recipes';
+  document.getElementById('list').innerHTML=rows.map(r=>{
+    const who=[r.author_chef,r.source].find(v=>v&&!/^(unknown|na)$/i.test(v.trim()));
+    const meta=[r.meal,r.protein,who].filter(Boolean).map(esc).join(' · ');
+    const img=r.photo_url?`<img loading="lazy" src="${esc(r.photo_url)}" alt="">`:'<div class="ph"></div>';
+    const inner=`${img}<div class="t"><div class="n">${esc(r.name)}</div><div class="m">${meta}${r.recipe_url?'':' · no scan'}</div></div>`;
+    return `<li>${r.recipe_url?`<a href="${esc(r.recipe_url)}" target="_blank" rel="noopener">${inner}</a>`:inner}</li>`;}).join('');}
+document.getElementById('q').addEventListener('input',render);
+fetch(SUPABASE_URL+'/rest/v1/recipes?select=recipe_id,name,meal_type,protein,ethnicity,cooking_method,source,author_chef,comments,photo_url,recipe_url&order=name.asc',
+  {headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY}})
+ .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
+ .then(d=>{all=d.map(r=>({...r,name:(r.name||'').trim(),meal:norm(r.meal_type),protein:norm(r.protein)}));chips('meal','meal');chips('protein','protein');render();})
+ .catch(e=>{document.getElementById('count').innerHTML='<div class="err">Couldn’t load recipes ('+esc(e.message)+'). Check your connection.</div>';});
+</script>
+</body>
+</html>
