@@ -38,6 +38,7 @@ li a{color:inherit;text-decoration:none;display:flex;gap:12px;align-items:center
 <header>
   <h1>Recipes</h1>
   <input id="q" type="search" placeholder="Search name, chef, source…" autocomplete="off">
+  <div class="chips" id="owner"></div>
   <div class="chips" id="meal"></div>
   <div class="chips" id="protein"></div>
 </header>
@@ -47,7 +48,7 @@ li a{color:inherit;text-decoration:none;display:flex;gap:12px;align-items:center
 <script>
 const SUPABASE_URL='https://ndrwzvhebakozjlfnvax.supabase.co';
 const SUPABASE_KEY='sb_publishable_jWnI0f_lvzFq9-vgk56B5Q_oU4rOZjU';
-let all=[],f={meal:'',protein:''};
+let all=[],f={owner:'',meal:'',protein:''};
 const norm=s=>{s=(s||'').trim();if(!s||/^(none|na)$/i.test(s))return'';s=s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
   const map={eggs:'egg',vegtable:'vegetable'};s=map[s]||s;return s.replace(/\b\w/g,c=>c.toUpperCase());};
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -56,7 +57,7 @@ function chips(id,key){const vals=[...new Set(all.map(r=>r[key]).filter(Boolean)
   el.innerHTML=['All',...vals].map(v=>`<button class="chip${(f[key]||'All')===v?' on':''}" data-v="${esc(v)}">${esc(v)}</button>`).join('');
   el.onclick=e=>{const b=e.target.closest('.chip');if(!b)return;f[key]=b.dataset.v==='All'?'':b.dataset.v;chips(id,key);render();};}
 function render(){const q=document.getElementById('q').value.trim().toLowerCase();
-  const rows=all.filter(r=>(!f.meal||r.meal===f.meal)&&(!f.protein||r.protein===f.protein)&&
+  const rows=all.filter(r=>(!f.owner||r.owner===f.owner)&&(!f.meal||r.meal===f.meal)&&(!f.protein||r.protein===f.protein)&&
     (!q||[r.name,r.author_chef,r.source,r.ethnicity,r.cooking_method,r.comments].join(' ').toLowerCase().includes(q)));
   document.getElementById('count').textContent=rows.length+' of '+all.length+' recipes';
   document.getElementById('list').innerHTML=rows.map(r=>{
@@ -66,10 +67,10 @@ function render(){const q=document.getElementById('q').value.trim().toLowerCase(
     const inner=`${img}<div class="t"><div class="n">${esc(r.name)}</div><div class="m">${meta}${r.recipe_url?'':' · no scan'}</div></div>`;
     return `<li>${r.recipe_url?`<a href="${esc(r.recipe_url)}" target="_blank" rel="noopener">${inner}</a>`:inner}</li>`;}).join('');}
 document.getElementById('q').addEventListener('input',render);
-fetch(SUPABASE_URL+'/rest/v1/recipes?select=recipe_id,name,meal_type,protein,ethnicity,cooking_method,source,author_chef,comments,photo_url,recipe_url&order=name.asc',
+fetch(SUPABASE_URL+'/rest/v1/recipes?select=recipe_id,name,owner,meal_type,protein,ethnicity,cooking_method,source,author_chef,comments,photo_url,recipe_url&order=name.asc',
   {headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY}})
  .then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
- .then(d=>{all=d.map(r=>({...r,name:(r.name||'').trim(),meal:norm(r.meal_type),protein:norm(r.protein)}));chips('meal','meal');chips('protein','protein');render();})
+ .then(d=>{all=d.map(r=>({...r,name:(r.name||'').trim(),meal:norm(r.meal_type),protein:norm(r.protein)}));chips('owner','owner');chips('meal','meal');chips('protein','protein');render();})
  .catch(e=>{document.getElementById('count').innerHTML='<div class="err">Couldn’t load recipes ('+esc(e.message)+'). Check your connection.</div>';});
 </script>
 </body>
