@@ -586,6 +586,7 @@ function openDetail(id) {
     ${docs.length ? `<div class="detail-docs">${docs.join('')}</div>` : ''}
     <div class="modal-actions">
       <button class="btn btn-secondary btn-sm" onclick="shoppingList(${r.recipe_id},event)">🛒 Shopping List → Notes</button>
+      <button class="btn btn-secondary btn-sm" onclick="printRecipe(${r.recipe_id})">📖 Recipe card</button>
       <button class="btn btn-primary btn-sm" onclick="openEdit(${r.recipe_id})">Edit</button>
       <button class="btn btn-sm" style="background:#5a1a1a;border:1px solid #8b2020;color:#ffaaaa;margin-left:auto" onclick="deleteRecipe(${r.recipe_id})">🗑 Delete</button>
     </div>`;
@@ -619,9 +620,9 @@ function renderForm(r, isNew) {
       <div class="form-field"><label>Owner</label>
         ${ownerSelect(r, isNew)}</div>
       <div class="form-field"><label>Author / Chef</label>
-        <input id="f-chef" value="${esc(r.author_chef||'')}"></div>
+        ${buildSelect('f-chef', distinctValues('author_chef'), r.author_chef)}</div>
       <div class="form-field"><label>Source</label>
-        <input id="f-source" value="${esc(r.source||'')}"></div>
+        ${buildSelect('f-source', distinctValues('source'), r.source)}</div>
       <div class="form-field"><label>Meal Type</label>
         ${buildSelect('f-meal', ['Entrée','Appetizer','Soup','Salad','Side Dish','Breakfast','Brunch','Dessert','Snack','Beverage','Sauce / Condiment','Bread / Baked Good'], r.meal_type)}</div>
       <div class="form-field"><label>Protein</label>
@@ -757,6 +758,14 @@ function v(id) {
   return (el.value || '').trim();
 }
 
+function distinctValues(col) {
+  const seen = new Map();
+  for (const r of allRecipes) {
+    const v = (r[col] || '').replace(/\r/g,'').trim();
+    if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
 function buildSelect(id, options, current) {
   const cur = (current || '').trim();
   const inList = !cur || options.map(o => o.toLowerCase()).includes(cur.toLowerCase());
@@ -791,37 +800,56 @@ function fmtDate(d) {
 function printRecipe(id) {
   const r = allRecipes.find(x => x.recipe_id === id);
   if (!r) return;
-  const tags = [r.meal_type, r.protein, r.cooking_method, r.ethnicity]
-    .filter(v => v && v !== 'None' && v !== 'NA').join(' · ');
-  const fields = [
-    ['Owner',         r.owner],
-    ['Author / Chef', r.author_chef],
-    ['Source',        r.source],
-    ['Date Entered',  fmtDate(r.date_entered)],
-    ['Last Cooked',   fmtDate(r.last_cooked)],
-  ].filter(([,v]) => v);
+  const clean = x => (x || '').replace(/\r/g, '').trim();
+  const tags = [r.meal_type, r.protein, r.cooking_method, r.ethnicity].map(clean)
+    .filter(v => v && !['None', 'NA', 'Unknown'].includes(v)).join(' · ');
+  const by = [clean(r.author_chef), clean(r.source)].filter(v => v && v !== 'Unknown')
+    .filter((v, i, a) => a.indexOf(v) === i).join(' · ');
+  const ingredients = clean(r.ingredients).split('\n').map(l => l.trim()).filter(Boolean);
+  const steps = clean(r.instructions);
+  let stepsBlock = '', openList = false;
+  for (const par of steps ? steps.split(/\n\s*\n/) : []) {
+    const m = par.trim().match(/^(\d+)[.)]\s*([\s\S]*)$/);
+    if (m) { if (!openList) { stepsBlock += '<ol>'; openList = true; } stepsBlock += `<li>${esc(m[2])}</li>`; }
+    else { if (openList) { stepsBlock += '</ol>'; openList = false; } stepsBlock += `<p class="note">${esc(par.trim())}</p>`; }
+  }
+  if (openList) stepsBlock += '</ol>';
   const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>${esc(r.name||'Recipe')}</title>
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(r.name || 'Recipe')}</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 680px; margin: 40px auto; color: #111; font-size: 14px; line-height: 1.5; }
-    h1 { font-size: 1.5rem; margin-bottom: 4px; }
-    .tags { color: #555; font-size: 0.85rem; margin-bottom: 12px; }
-    .meta { font-size: 0.85rem; color: #444; margin-bottom: 16px; }
-    .meta strong { color: #111; }
-    .section-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin: 16px 0 4px; }
-    .section-body { white-space: pre-wrap; font-size: 0.92rem; }
-    hr { border: none; border-top: 1px solid #ddd; margin: 16px 0; }
-    img { max-width: 200px; float: right; border-radius: 8px; margin: 0 0 12px 20px; }
-    @media print { body { margin: 20px; } }
+    *{box-sizing:border-box} body{margin:0;background:#f7f3ec;color:#2b2622;font:16px/1.55 Georgia,'Times New Roman',serif;padding:24px 16px}
+    .card{max-width:760px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+    .hero{width:100%;max-height:340px;object-fit:cover;display:block}
+    .body{padding:24px 30px 30px}
+    h1{font-size:2rem;line-height:1.15;margin:0 0 6px}
+    .by{color:#7a7067;font-style:italic;margin-bottom:4px}
+    .tags{font:600 12px -apple-system,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#b5562f;margin-bottom:18px}
+    .cols{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:28px}
+    h2{font:700 12px -apple-system,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9e7e5a;border-bottom:2px solid #eee4d6;padding-bottom:6px;margin:0 0 10px}
+    ul.ing{list-style:none;margin:0;padding:0} ul.ing li{padding:5px 0 5px 26px;position:relative;border-bottom:1px dotted #e6ddd0}
+    ul.ing li:before{content:'';position:absolute;left:2px;top:10px;width:13px;height:13px;border:1.5px solid #b9a88f;border-radius:3px}
+    ol{margin:0;padding-left:22px} ol li{margin:0 0 12px;padding-left:4px}
+    .note{background:#faf6ef;border-left:3px solid #d9c6a8;padding:8px 12px;margin:0 0 12px;font-size:.95rem}
+    .comments{margin-top:20px} .empty{color:#9a8f84;font-style:italic}
+    .bar{max-width:760px;margin:0 auto 12px;display:flex;gap:8px;justify-content:flex-end}
+    .bar a,.bar button{font:600 14px -apple-system,system-ui,sans-serif;padding:8px 14px;border-radius:8px;border:1px solid #d9cdbb;background:#fff;color:#2b2622;text-decoration:none;cursor:pointer}
+    .bar button{background:#b5562f;border-color:#b5562f;color:#fff}
+    @media (max-width:640px){.cols{grid-template-columns:1fr}.body{padding:20px}}
+    @media print{body{background:#fff;padding:0}.card{box-shadow:none;border-radius:0}.bar{display:none}.hero{max-height:240px}}
   </style></head><body>
-  ${r.photo_url ? `<img src="${r.photo_url}">` : ''}
-  <h1>${esc(r.name||'(no name)')}</h1>
-  ${tags ? `<div class="tags">${esc(tags)}</div>` : ''}
-  <hr>
-  <div class="meta">${fields.map(([l,v])=>`<div><strong>${l}:</strong> ${esc(String(v))}</div>`).join('')}</div>
-  ${r.comments ? `<div class="section-label">Notes / Comments</div><div class="section-body">${esc(r.comments)}</div>` : ''}
-  ${r.instructions ? `<div class="section-label">Instructions</div><div class="section-body">${esc(r.instructions)}</div>` : ''}
-  <script>window.onload=()=>window.print();<\/script>
+  <div class="bar">${r.recipe_url ? `<a href="${esc(r.recipe_url)}" target="_blank">Original scan</a>` : ''}<button onclick="window.print()">Print</button></div>
+  <div class="card">
+  ${r.photo_url ? `<img class="hero" src="${esc(r.photo_url)}" alt="">` : ''}
+  <div class="body">
+    <h1>${esc(r.name || '(no name)')}</h1>
+    ${by ? `<div class="by">${esc(by)}</div>` : ''}
+    ${tags ? `<div class="tags">${esc(tags)}</div>` : ''}
+    <div class="cols">
+      <div><h2>Ingredients</h2>${ingredients.length ? `<ul class="ing">${ingredients.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : '<p class="empty">Not entered yet — see the original scan.</p>'}</div>
+      <div><h2>Instructions</h2>${stepsBlock || '<p class="empty">Not entered yet — see the original scan.</p>'}</div>
+    </div>
+    ${clean(r.comments) ? `<div class="comments"><h2>Our notes</h2><p>${esc(clean(r.comments))}</p></div>` : ''}
+  </div></div>
   </body></html>`);
   w.document.close();
 }
