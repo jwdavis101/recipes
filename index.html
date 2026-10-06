@@ -41,7 +41,21 @@ li a{color:inherit;text-decoration:none;display:flex;gap:12px;align-items:center
 #card h2{font:700 12px system-ui;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin:18px 0 8px}
 #card ul{padding-left:20px;margin:0} #card li{display:list-item;background:none;border:0;border-radius:0;padding:0;margin:0 0 6px} #card ol{padding-left:22px;margin:0} #card ol li{margin-bottom:10px}
 #card .note{color:var(--mute);font-size:.95em}
-@media print{body>*:not(#card){display:none!important}#card{position:static;display:block!important}#card .bar{display:none}}
+#printmenu{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:none;align-items:flex-end;justify-content:center}
+#printmenu .sheet{background:var(--card);width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:14px 16px calc(env(safe-area-inset-bottom) + 16px)}
+#printmenu .sheet div{font:600 13px system-ui;color:var(--mute);text-align:center;margin:2px 0 12px}
+#printmenu button{display:block;width:100%;font:600 17px system-ui;padding:14px;margin:0 0 8px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+#printmenu button.go{background:var(--accent);border-color:var(--accent);color:#fff}
+#printmenu button:disabled{opacity:.45}
+#scanprint{display:none}
+#scanprint img{width:100%;display:block;page-break-after:always;break-after:page}
+#busy{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);background:rgba(0,0,0,.8);color:#fff;font:600 15px system-ui;padding:14px 18px;border-radius:12px;z-index:50;display:none}
+@media print{
+  body>*{display:none!important}
+  body:not(.print-scan) #card{position:static;display:block!important;overflow:visible}
+  body:not(.print-scan) #card .bar{display:none}
+  body.print-scan #scanprint{display:block!important}
+}
 </style>
 </head>
 <body>
@@ -55,6 +69,9 @@ li a{color:inherit;text-decoration:none;display:flex;gap:12px;align-items:center
 <div id="count">Loading…</div>
 <ul id="list"></ul>
 <div id="card"></div>
+<div id="printmenu"><div class="sheet"><div>Print</div><button class="go" id="pm-card">Recipe card</button><button id="pm-scan">Original scan</button><button id="pm-cancel">Cancel</button></div></div>
+<div id="scanprint"></div>
+<div id="busy">Preparing scan…</div>
 <p class="hint">Tap a recipe to open it. To print: Share → Print.</p>
 <script>
 const SUPABASE_URL='https://ndrwzvhebakozjlfnvax.supabase.co';
@@ -77,15 +94,61 @@ function render(){const q=document.getElementById('q').value.trim().toLowerCase(
     const img=r.photo_url?`<img loading="lazy" src="${esc(r.photo_url)}" alt="">`:'<div class="ph"></div>';
     const hasCard=(r.ingredients||'').trim()||(r.instructions||'').trim();
     const inner=`${img}<div class="t"><div class="n">${esc(r.name)}</div><div class="m">${meta}${r.recipe_url?'':' · no scan'}</div></div>`;
-    return `<li>${hasCard?`<a href="#" data-card="${r.recipe_id}">${inner}</a>`:r.recipe_url?`<a href="${esc(r.recipe_url)}" target="_blank" rel="noopener">${inner}</a>`:inner}</li>`;}).join('');}
+    return `<li><a href="#" data-card="${r.recipe_id}">${inner}</a></li>`;}).join('');}
 document.getElementById('list').addEventListener('click',e=>{const a=e.target.closest('a[data-card]');if(!a)return;e.preventDefault();showCard(+a.dataset.card);});
+let pdfReady=null;
+function loadPdfJs(){
+  if(pdfReady) return pdfReady;
+  pdfReady=(async()=>{
+    await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('Could not load the PDF reader'));document.head.appendChild(s);});
+    const w=await (await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js')).text();
+    pdfjsLib.GlobalWorkerOptions.workerPort=new Worker(URL.createObjectURL(new Blob([w],{type:'application/javascript'})));
+  })();
+  pdfReady.catch(()=>{pdfReady=null;});
+  return pdfReady;
+}
+function openPrintMenu(id){
+  const r=all.find(x=>x.recipe_id===id); if(!r) return;
+  const m=document.getElementById('printmenu');
+  document.getElementById('pm-scan').disabled=!r.recipe_url;
+  document.getElementById('pm-scan').textContent=r.recipe_url?'Original scan':'Original scan (none on file)';
+  document.getElementById('pm-card').onclick=()=>{m.style.display='none';document.body.classList.remove('print-scan');setTimeout(()=>window.print(),50);};
+  document.getElementById('pm-scan').onclick=()=>{m.style.display='none';printScan(r);};
+  document.getElementById('pm-cancel').onclick=()=>{m.style.display='none';};
+  m.style.display='flex';
+}
+async function printScan(r){
+  const busy=document.getElementById('busy'), out=document.getElementById('scanprint');
+  busy.style.display='block';
+  try{
+    await loadPdfJs();
+    const buf=await (await fetch(r.recipe_url)).arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+    out.innerHTML='';
+    for(let i=1;i<=pdf.numPages;i++){
+      const pg=await pdf.getPage(i), vp=pg.getViewport({scale:2});
+      const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+      await pg.render({canvasContext:c.getContext('2d'),viewport:vp,intent:'print'}).promise;
+      const img=new Image();img.src=c.toDataURL('image/jpeg',0.9);out.appendChild(img);
+      await new Promise(res=>{img.onload=res;img.onerror=res;});
+    }
+    busy.style.display='none';
+    document.body.classList.add('print-scan');
+    const done=()=>{document.body.classList.remove('print-scan');out.innerHTML='';window.removeEventListener('afterprint',done);};
+    window.addEventListener('afterprint',done);
+    setTimeout(()=>window.print(),100);
+  }catch(e){
+    busy.style.display='none';
+    if(confirm("Couldn't prepare the scan here. Open it instead? You can print it from Safari's Share button.")) window.open(r.recipe_url,'_blank');
+  }
+}
 function showCard(id){const r=all.find(x=>x.recipe_id===id);if(!r)return;
   const ing=(r.ingredients||'').split('\n').map(l=>l.trim()).filter(Boolean);
   let steps='',open=false;for(const par of (r.instructions||'').trim().split(/\n\s*\n/).filter(Boolean)){const m=par.trim().match(/^(\d+)[.)]\s*([\s\S]*)$/);
     if(m){if(!open){steps+='<ol>';open=true;}steps+=`<li>${esc(m[2])}</li>`;}else{if(open){steps+='</ol>';open=false;}steps+=`<p class="note">${esc(par.trim())}</p>`;}}
   if(open)steps+='</ol>';
   const c=document.getElementById('card');
-  c.innerHTML=`<div class="bar"><button onclick="document.getElementById('card').style.display='none'">‹ Back</button>${r.recipe_url?`<a href="${esc(r.recipe_url)}" target="_blank" rel="noopener">Scan</a>`:''}<button class="pr" onclick="window.print()">Print</button></div>
+  c.innerHTML=`<div class="bar"><button onclick="document.getElementById('card').style.display='none'">‹ Back</button>${r.recipe_url?`<a href="${esc(r.recipe_url)}" target="_blank" rel="noopener">Scan</a>`:''}<button class="pr" onclick="openPrintMenu(${r.recipe_id})">Print</button></div>
   ${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:''}<div class="b"><h1 style="margin:0 0 4px">${esc(r.name)}</h1>
   <div class="note">${esc([r.author_chef,r.source].filter(v=>v&&!/^(unknown|na)$/i.test(v.trim())).join(' · '))}</div>
   <h2>Ingredients</h2>${ing.length?`<ul>${ing.map(i=>/:$/.test(i)?`<li style="list-style:none;margin:10px 0 4px -20px;font:700 12px system-ui;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)">${esc(i.replace(/:$/,''))}</li>`:`<li>${esc(i)}</li>`).join('')}</ul>`:'<p class="note">See the scan.</p>'}
