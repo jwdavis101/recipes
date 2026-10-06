@@ -521,7 +521,7 @@ function renderList(recipes) {
       <td>${docs||'—'}</td>
       <td><div class="row-actions">
         <button class="btn btn-sm btn-secondary" onclick="shoppingList(${r.recipe_id},event)" title="Create shopping list in Notes">🛒</button>
-        <button class="btn btn-sm btn-secondary" onclick="printRecipe(${r.recipe_id})">🖨️</button>
+        <button class="btn btn-sm btn-secondary" title="Print recipe" onclick="printRecipe(${r.recipe_id}, true)">🖨️</button>
         <button class="btn btn-sm btn-primary" onclick="openEdit(${r.recipe_id})">Edit</button>
       </div></td>
     </tr>`;
@@ -624,7 +624,7 @@ function renderForm(r, isNew) {
       <div class="form-field"><label>Source</label>
         ${buildSelect('f-source', distinctValues('source'), r.source)}</div>
       <div class="form-field"><label>Meal Type</label>
-        ${buildSelect('f-meal', ['Entrée','Appetizer','Soup','Salad','Side Dish','Breakfast','Brunch','Dessert','Snack','Beverage','Sauce / Condiment','Bread / Baked Good'], r.meal_type)}</div>
+        ${buildSelect('f-meal', ['Entree','Appetizer','Soup','Salad','Side Dish','Breakfast','Brunch','Dessert','Snack','Beverage','Sauce / Condiment','Bread / Baked Good'], r.meal_type)}</div>
       <div class="form-field"><label>Protein</label>
         ${buildSelect('f-protein', ['Beef','Chicken','Pork','Lamb','Turkey','Seafood','Fish','Shrimp','Shellfish','Egg','Tofu / Tempeh','Legumes','Vegetarian','Vegan','NA'], r.protein)}</div>
       <div class="form-field"><label>Cooking Method</label>
@@ -797,7 +797,7 @@ function fmtDate(d) {
 
 
 // ── PRINT ─────────────────────────────────────────────────────────────────────
-function printRecipe(id) {
+function printRecipe(id, autoPrint) {
   const r = allRecipes.find(x => x.recipe_id === id);
   if (!r) return;
   const clean = x => (x || '').replace(/\r/g, '').trim();
@@ -827,7 +827,7 @@ function printRecipe(id) {
     .cols{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:28px}
     h2{font:700 12px -apple-system,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#9e7e5a;border-bottom:2px solid #eee4d6;padding-bottom:6px;margin:0 0 10px}
     ul.ing{list-style:none;margin:0;padding:0} ul.ing li{padding:5px 0 5px 26px;position:relative;border-bottom:1px dotted #e6ddd0}
-    ul.ing li:before{content:'';position:absolute;left:2px;top:10px;width:13px;height:13px;border:1.5px solid #b9a88f;border-radius:3px}
+    ul.ing li.sub{padding-left:0;border:0;font:700 12px -apple-system,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7a7067;margin-top:8px} ul.ing li.sub:before{display:none} ul.ing li:before{content:'';position:absolute;left:2px;top:10px;width:13px;height:13px;border:1.5px solid #b9a88f;border-radius:3px}
     ol{margin:0;padding-left:22px} ol li{margin:0 0 12px;padding-left:4px}
     .note{background:#faf6ef;border-left:3px solid #d9c6a8;padding:8px 12px;margin:0 0 12px;font-size:.95rem}
     .comments{margin-top:20px} .empty{color:#9a8f84;font-style:italic}
@@ -845,11 +845,12 @@ function printRecipe(id) {
     ${by ? `<div class="by">${esc(by)}</div>` : ''}
     ${tags ? `<div class="tags">${esc(tags)}</div>` : ''}
     <div class="cols">
-      <div><h2>Ingredients</h2>${ingredients.length ? `<ul class="ing">${ingredients.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : '<p class="empty">Not entered yet — see the original scan.</p>'}</div>
+      <div><h2>Ingredients</h2>${ingredients.length ? `<ul class="ing">${ingredients.map(i => /:$/.test(i) ? `<li class="sub">${esc(i.replace(/:$/, ''))}</li>` : `<li>${esc(i)}</li>`).join('')}</ul>` : '<p class="empty">Not entered yet — see the original scan.</p>'}</div>
       <div><h2>Instructions</h2>${stepsBlock || '<p class="empty">Not entered yet — see the original scan.</p>'}</div>
     </div>
     ${clean(r.comments) ? `<div class="comments"><h2>Our notes</h2><p>${esc(clean(r.comments))}</p></div>` : ''}
   </div></div>
+  ${autoPrint ? '<script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>' : ''}
   </body></html>`);
   w.document.close();
 }
