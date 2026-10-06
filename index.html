@@ -88,7 +88,7 @@ function showCard(id){const r=all.find(x=>x.recipe_id===id);if(!r)return;
   c.innerHTML=`<div class="bar"><button onclick="document.getElementById('card').style.display='none'">‹ Back</button>${r.recipe_url?`<a href="${esc(r.recipe_url)}" target="_blank" rel="noopener">Scan</a>`:''}<button class="pr" onclick="window.print()">Print</button></div>
   ${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:''}<div class="b"><h1 style="margin:0 0 4px">${esc(r.name)}</h1>
   <div class="note">${esc([r.author_chef,r.source].filter(v=>v&&!/^(unknown|na)$/i.test(v.trim())).join(' · '))}</div>
-  <h2>Ingredients</h2>${ing.length?`<ul>${ing.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>`:'<p class="note">See the scan.</p>'}
+  <h2>Ingredients</h2>${ing.length?`<ul>${ing.map(i=>/:$/.test(i)?`<li style="list-style:none;margin:10px 0 4px -20px;font:700 12px system-ui;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)">${esc(i.replace(/:$/,''))}</li>`:`<li>${esc(i)}</li>`).join('')}</ul>`:'<p class="note">See the scan.</p>'}
   <h2>Instructions</h2>${steps||'<p class="note">See the scan.</p>'}</div>`;
   c.style.display='block';c.scrollTop=0;}
 document.getElementById('q').addEventListener('input',render);
