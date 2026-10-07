@@ -588,6 +588,7 @@ function openDetail(id) {
     ${docs.length ? `<div class="detail-docs">${docs.join('')}</div>` : ''}
     <div class="modal-actions">
       <button class="btn btn-secondary btn-sm" onclick="shoppingList(${r.recipe_id},event)">🛒 Shopping List → Notes</button>
+      ${cardButton(r)}
       <button class="btn btn-secondary btn-sm" onclick="printRecipe(${r.recipe_id})">📖 Recipe card</button>
       <button class="btn btn-primary btn-sm" onclick="openEdit(${r.recipe_id})">Edit</button>
       <button class="btn btn-sm" style="background:#5a1a1a;border:1px solid #8b2020;color:#ffaaaa;margin-left:auto" onclick="deleteRecipe(${r.recipe_id})">🗑 Delete</button>
@@ -764,6 +765,24 @@ function mergeOptions(fixed, col) {
   const seen = new Map(fixed.map(o => [o.toLowerCase(), o]));
   for (const v of distinctValues(col)) if (!['none','na','unknown'].includes(v.toLowerCase()) && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+function cardButton(r) {
+  if ((r.instructions || '').trim() || !r.recipe_url) return '';
+  return r.card_requested
+    ? `<button class="btn btn-secondary btn-sm" disabled title="Say &quot;process recipes&quot; to Claude">⏳ Card requested</button>`
+    : `<button class="btn btn-secondary btn-sm" id="cardreq-${r.recipe_id}" onclick="requestCard(${r.recipe_id})">✨ Make recipe card</button>`;
+}
+async function requestCard(id) {
+  const b = document.getElementById('cardreq-' + id);
+  if (b) { b.disabled = true; b.textContent = 'Requesting…'; }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/request_recipe_card`, {
+      method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_recipe_id: id }) });
+    if (!res.ok) throw new Error(await res.text());
+    const r = allRecipes.find(x => x.recipe_id === id); if (r) r.card_requested = true;
+    if (b) { b.textContent = '⏳ Card requested'; b.title = 'Say "process recipes" to Claude'; }
+  } catch (e) { if (b) { b.disabled = false; b.textContent = '✨ Make recipe card'; } alert('Could not request the card: ' + e.message); }
 }
 function distinctValues(col) {
   const seen = new Map();
