@@ -768,21 +768,26 @@ function mergeOptions(fixed, col) {
 }
 function cardButton(r) {
   if ((r.instructions || '').trim() || !r.recipe_url) return '';
-  return r.card_requested
-    ? `<button class="btn btn-secondary btn-sm" disabled title="Say &quot;process recipes&quot; to Claude">⏳ Card requested</button>`
-    : `<button class="btn btn-secondary btn-sm" id="cardreq-${r.recipe_id}" onclick="requestCard(${r.recipe_id})">✨ Make recipe card</button>`;
+  return `<button class="btn btn-secondary btn-sm" id="cardreq-${r.recipe_id}" onclick="requestCard(${r.recipe_id})">✨ Make recipe card</button>`;
 }
 async function requestCard(id) {
   const b = document.getElementById('cardreq-' + id);
-  if (b) { b.disabled = true; b.textContent = 'Requesting…'; }
+  const say = t => { if (b) b.textContent = t; };
+  if (b) b.disabled = true;
+  const H = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/request_recipe_card`, {
-      method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_recipe_id: id }) });
-    if (!res.ok) throw new Error(await res.text());
-    const r = allRecipes.find(x => x.recipe_id === id); if (r) r.card_requested = true;
-    if (b) { b.textContent = '⏳ Card requested'; b.title = 'Say "process recipes" to Claude'; }
-  } catch (e) { if (b) { b.disabled = false; b.textContent = '✨ Make recipe card'; } alert('Could not request the card: ' + e.message); }
+    say('Reading the scan… (about 30 sec)');
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/request_recipe_card`, { method: 'POST', headers: H, body: JSON.stringify({ p_recipe_id: id }) });
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/recipe-card`, { method: 'POST', headers: H, body: JSON.stringify({ recipe_id: id }) });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out.error || ('HTTP ' + res.status));
+    say('✓ Card ready');
+    await loadRecipes();
+    closeDetailModal(); openDetail(id);
+  } catch (e) {
+    if (b) { b.disabled = false; b.textContent = '✨ Make recipe card'; }
+    alert("Couldn't make the card: " + e.message + "\n\nIt stays queued — you can try again, or ask Claude to \"process recipes\".");
+  }
 }
 function distinctValues(col) {
   const seen = new Map();
