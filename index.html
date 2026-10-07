@@ -97,13 +97,17 @@ function render(){const q=document.getElementById('q').value.trim().toLowerCase(
     return `<li><a href="#" data-card="${r.recipe_id}">${inner}</a></li>`;}).join('');}
 document.getElementById('list').addEventListener('click',e=>{const a=e.target.closest('a[data-card]');if(!a)return;e.preventDefault();showCard(+a.dataset.card);});
 async function requestCard(id){
-  const b=document.getElementById('cardreq'); if(b){b.disabled=true;b.textContent='Requesting…';}
+  const b=document.getElementById('cardreq'); if(b){b.disabled=true;b.textContent='Reading the scan… (about 30 sec)';}
+  const H={apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'};
   try{
-    const res=await fetch(SUPABASE_URL+'/rest/v1/rpc/request_recipe_card',{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({p_recipe_id:id})});
-    if(!res.ok) throw new Error(res.status);
-    const r=all.find(x=>x.recipe_id===id); if(r) r.card_requested=true;
-    if(b){b.outerHTML='<p class="note" style="margin-top:14px">⏳ Recipe card requested. Claude will make it next time you say "process recipes".</p>';}
-  }catch(e){ if(b){b.disabled=false;b.textContent='✨ Make recipe card';} alert("Couldn't request the card. Try again in a moment."); }
+    await fetch(SUPABASE_URL+'/rest/v1/rpc/request_recipe_card',{method:'POST',headers:H,body:JSON.stringify({p_recipe_id:id})});
+    const res=await fetch(SUPABASE_URL+'/functions/v1/recipe-card',{method:'POST',headers:H,body:JSON.stringify({recipe_id:id})});
+    const out=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(out.error||('HTTP '+res.status));
+    const r2=await (await fetch(SUPABASE_URL+'/rest/v1/recipes?select=recipe_id,name,owner,ingredients,instructions,card_requested,meal_type,protein,ethnicity,cooking_method,source,author_chef,comments,photo_url,recipe_url&recipe_id=eq.'+id,{headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY}})).json();
+    const i=all.findIndex(x=>x.recipe_id===id); if(i>=0&&r2[0]) all[i]={...all[i],...r2[0],name:(r2[0].name||'').trim(),meal:norm(r2[0].meal_type),protein:norm(r2[0].protein)};
+    render(); showCard(id);
+  }catch(e){ if(b){b.disabled=false;b.textContent='✨ Make recipe card';} alert("Couldn't make the card: "+e.message); }
 }
 let pdfReady=null;
 function loadPdfJs(){
@@ -160,9 +164,7 @@ function showCard(id){const r=all.find(x=>x.recipe_id===id);if(!r)return;
   c.innerHTML=`<div class="bar"><button onclick="document.getElementById('card').style.display='none'">‹ Back</button>${r.recipe_url?`<a href="${esc(r.recipe_url)}" target="_blank" rel="noopener">Scan</a>`:''}<button class="pr" onclick="openPrintMenu(${r.recipe_id})">Print</button></div>
   ${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:''}<div class="b"><h1 style="margin:0 0 4px">${esc(r.name)}</h1>
   <div class="note">${esc([r.author_chef,r.source].filter(v=>v&&!/^(unknown|na)$/i.test(v.trim())).join(' · '))}</div>
-  ${(!(r.instructions||'').trim() && r.recipe_url) ? (r.card_requested
-     ? `<p class="note" style="margin-top:14px">⏳ Recipe card requested. Claude will make it next time you say "process recipes".</p>`
-     : `<button id="cardreq" style="margin-top:14px;width:100%;font:600 16px system-ui;padding:12px;border-radius:12px;border:1px solid var(--accent);background:var(--card);color:var(--accent)" onclick="requestCard(${r.recipe_id})">✨ Make recipe card</button>`) : ''}
+  ${(!(r.instructions||'').trim() && r.recipe_url) ? (false ? '' : `<button id="cardreq" style="margin-top:14px;width:100%;font:600 16px system-ui;padding:12px;border-radius:12px;border:1px solid var(--accent);background:var(--card);color:var(--accent)" onclick="requestCard(${r.recipe_id})">✨ Make recipe card</button>`) : ''}
   <h2>Ingredients</h2>${ing.length?`<ul>${ing.map(i=>/:$/.test(i)?`<li style="list-style:none;margin:10px 0 4px -20px;font:700 12px system-ui;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)">${esc(i.replace(/:$/,''))}</li>`:`<li>${esc(i)}</li>`).join('')}</ul>`:'<p class="note">See the scan.</p>'}
   <h2>Instructions</h2>${steps||'<p class="note">See the scan.</p>'}</div>`;
   c.style.display='block';c.scrollTop=0;}
