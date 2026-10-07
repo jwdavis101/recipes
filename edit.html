@@ -39,12 +39,14 @@
   .view-btn.active { border-color: var(--accent); color: var(--accent); }
 
   /* ── FILTER BAR ── */
-  .filter-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .filter-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 2px; }
+  .filter-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 4px 20px; display: grid; grid-template-columns: 84px 1fr; align-items: start; }
+  .filter-bar > [id^="chips-"] { padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .filter-bar > [id^="chips-"]:last-child, .filter-bar > .filter-label:nth-last-child(2) { border-bottom: none; }
+  .filter-label { font-size: 0.72rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; padding: 13px 0 7px; border-bottom: 1px solid var(--border); align-self: stretch; }
   .filter-chip { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); padding: 4px 11px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
   .filter-chip:hover { border-color: var(--accent); color: var(--text); }
   .filter-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .filter-sep { width: 1px; background: var(--border); height: 20px; margin: 0 4px; }
+  .filter-sep { display: none; }
 
   /* ── LIST VIEW ── */
   .list-wrap { padding: 0 20px 20px; }
