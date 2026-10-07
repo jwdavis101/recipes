@@ -624,19 +624,19 @@ function renderForm(r, isNew) {
       <div class="form-field"><label>Source</label>
         ${buildSelect('f-source', distinctValues('source'), r.source)}</div>
       <div class="form-field"><label>Meal Type</label>
-        ${buildSelect('f-meal', ['Entree','Appetizer','Soup','Salad','Side Dish','Breakfast','Brunch','Dessert','Snack','Beverage','Sauce / Condiment','Bread / Baked Good'], r.meal_type)}</div>
+        ${buildSelect('f-meal', mergeOptions(['Entree','Appetizer','Soup','Salad','Side Dish','Breakfast','Brunch','Dessert','Snack','Beverage','Sauce / Condiment','Bread / Baked Good'], 'meal_type'), r.meal_type)}</div>
       <div class="form-field"><label>Protein</label>
-        ${buildSelect('f-protein', ['Beef','Chicken','Pork','Lamb','Turkey','Seafood','Fish','Shrimp','Shellfish','Egg','Tofu / Tempeh','Legumes','Vegetarian','Vegan','NA'], r.protein)}</div>
+        ${buildSelect('f-protein', mergeOptions(['Beef','Chicken','Pork','Lamb','Turkey','Seafood','Fish','Shrimp','Shellfish','Egg','Tofu / Tempeh','Legumes','Vegetarian','Vegan','NA'], 'protein'), r.protein)}</div>
       <div class="form-field"><label>Cooking Method</label>
-        ${buildSelect('f-method', ['Baking','Broiling','Frying','Deep Frying','Grilling','Roasting','Sautéing','Simmering','Slow Cooking','Smoking','Steaming','Stewing','Stir Frying','Pressure Cooking','Air Frying','Sous Vide','No Cook'], r.cooking_method)}</div>
+        ${buildSelect('f-method', mergeOptions(['Baking','Broiling','Frying','Deep Frying','Grilling','Roasting','Sautéing','Simmering','Slow Cooking','Smoking','Steaming','Stewing','Stir Frying','Pressure Cooking','Air Frying','Sous Vide','No Cook'], 'cooking_method'), r.cooking_method)}</div>
       <div class="form-field"><label>Ethnicity / Origin</label>
-        ${buildSelect('f-ethnicity', ['American','Asian','Cajun / Creole','Caribbean','Chinese','French','Greek','Indian','Italian','Japanese','Korean','Latin American','Mediterranean','Mexican','Middle Eastern','Moroccan','Southern / Soul','Spanish','Thai','Vietnamese'], r.ethnicity)}</div>
+        ${buildSelect('f-ethnicity', mergeOptions(['American','Asian','Cajun / Creole','Caribbean','Chinese','French','Greek','Indian','Italian','Japanese','Korean','Latin American','Mediterranean','Mexican','Middle Eastern','Moroccan','Southern / Soul','Spanish','Thai','Vietnamese'], 'ethnicity'), r.ethnicity)}</div>
       <div class="form-field"><label>Units</label>
         <input id="f-units" value="${esc(r.units||'')}"></div>
       <div class="form-field"><label>Date Entered</label>
-        <input id="f-date" type="date" value="${r.date_entered || new Date().toISOString().slice(0,10)}"></div>
+        <input id="f-date" type="date" onclick="try{this.showPicker()}catch(e){}" style="cursor:pointer" value="${r.date_entered || new Date().toISOString().slice(0,10)}"></div>
       <div class="form-field"><label>Last Cooked</label>
-        <input id="f-cooked" type="date" value="${r.last_cooked||''}"></div>
+        <input id="f-cooked" type="date" onclick="try{this.showPicker()}catch(e){}" style="cursor:pointer" value="${r.last_cooked||''}"></div>
 
       <div class="form-field full"><label>Ingredients <span style="font-weight:400;color:var(--muted);font-size:0.82rem">— one per line, used for 🛒 Shopping List</span></label>
         <textarea id="f-ingredients" style="min-height:130px;font-family:monospace;font-size:0.85rem" placeholder="2 lbs pork chops&#10;2 tbsp olive oil&#10;1 tsp kosher salt&#10;...">${esc(r.ingredients||'')}</textarea></div>
@@ -758,6 +758,11 @@ function v(id) {
   return (el.value || '').trim();
 }
 
+function mergeOptions(fixed, col) {
+  const seen = new Map(fixed.map(o => [o.toLowerCase(), o]));
+  for (const v of distinctValues(col)) if (!['none','na','unknown'].includes(v.toLowerCase()) && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
 function distinctValues(col) {
   const seen = new Map();
   for (const r of allRecipes) {
